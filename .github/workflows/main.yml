@@ -1,0 +1,91 @@
+# GitHub Actions workflow to build executables for Windows and Mac
+# Save this as: .github/workflows/build-executables.yml
+
+name: Build Cross-Platform Executables
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+    
+    - name: Build Windows executable
+      run: |
+        pyinstaller --onefile --windowed --name "TranscriptCleaner" transcript_cleaner.py
+    
+    - name: Upload Windows executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: TranscriptCleaner-Windows
+        path: dist/TranscriptCleaner.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+    
+    - name: Build macOS executable
+      run: |
+        pyinstaller --onefile --windowed --name "TranscriptCleaner" transcript_cleaner.py
+    
+    - name: Upload macOS executable
+      uses: actions/upload-artifact@v3
+      with:
+        name: TranscriptCleaner-macOS
+        path: dist/TranscriptCleaner
+
+  create-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Download Windows executable
+      uses: actions/download-artifact@v3
+      with:
+        name: TranscriptCleaner-Windows
+        path: ./windows/
+    
+    - name: Download macOS executable
+      uses: actions/download-artifact@v3
+      with:
+        name: TranscriptCleaner-macOS
+        path: ./macos/
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.run_number }}
+        name: Release v${{ github.run_number }}
+        files: |
+          ./windows/TranscriptCleaner.exe
+          ./macos/TranscriptCleaner
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
